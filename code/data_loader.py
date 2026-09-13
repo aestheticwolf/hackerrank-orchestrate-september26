@@ -3,7 +3,7 @@ from typing import Optional
 
 import pandas as pd
 
-from config import (
+from code.config import (
     REQUESTS_FILE,
     FINANCIAL_PROFILES_FILE,
     FINANCIAL_EVENTS_FILE,

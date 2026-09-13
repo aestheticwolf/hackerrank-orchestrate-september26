@@ -5,8 +5,8 @@ from typing import Optional
 
 import pandas as pd
 
-from data_loader import Dataset
-from models import Evidence
+from code.data_loader import Dataset
+from code.models import Evidence
 
 
 def _safe_text(value: object) -> str:
@@ -123,7 +123,7 @@ def get_image_path(image_id: str) -> Path:
     """
     Resolve an image ID from images.csv to its dataset image file.
     """
-    from config import IMAGE_DIR
+    from code.config import IMAGE_DIR
 
     clean_id = str(image_id).strip()
 
@@ -252,7 +252,7 @@ def find_events_with_image_evidence(
 
 
 if __name__ == "__main__":
-    from data_loader import load_dataset
+    from code.data_loader import load_dataset
 
     dataset = load_dataset()
 

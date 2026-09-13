@@ -1,9 +1,10 @@
-import base64
 import json
+import time
 from pathlib import Path
 from typing import Any
 
 from google import genai
+from google.genai import types
 
 from code.ai.extractor import EvidenceExtractionError
 from code.config import GEMINI_API_KEY, GEMINI_MODEL
@@ -11,6 +12,9 @@ from code.config import GEMINI_API_KEY, GEMINI_MODEL
 
 class GeminiProvider:
     """Gemini implementation of the project's AIProvider interface."""
+
+    MAX_RETRIES = 3
+    RETRY_DELAY_SECONDS = 2
 
     def __init__(
         self,
@@ -43,11 +47,8 @@ class GeminiProvider:
                 f"{json.dumps(schema, separators=(',', ':'))}"
             )
 
-            input_content: list[dict[str, Any]] = [
-                {
-                    "type": "text",
-                    "text": request_prompt,
-                }
+            contents: list[Any] = [
+                types.Part.from_text(text=request_prompt)
             ]
 
             if image_path is not None:
@@ -58,33 +59,53 @@ class GeminiProvider:
 
                 image_bytes = image_path.read_bytes()
 
-                input_content.append(
-                    {
-                        "type": "image",
-                        "data": base64.b64encode(image_bytes).decode("utf-8"),
-                        "mime_type": "image/png",
-                    }
+                contents.append(
+                    types.Part.from_bytes(
+                        data=image_bytes,
+                        mime_type="image/png",
+                    )
                 )
 
-            response = self.client.interactions.create(
-                model=self.model,
-                input=input_content,
-                system_instruction=system_prompt,
-                response_format={
-                    "type": "text",
-                    "mime_type": "application/json",
-                    "schema": schema,
-                },
+            last_error: Exception | None = None
+
+            for attempt in range(1, self.MAX_RETRIES + 1):
+                try:
+                    response = self.client.models.generate_content(
+                        model=self.model,
+                        contents=contents,
+                        config=types.GenerateContentConfig(
+                            system_instruction=system_prompt,
+                            response_mime_type="application/json",
+                            response_schema=schema,
+                        ),
+                    )
+
+                    response_text = getattr(response, "text", None)
+
+                    if not response_text:
+                        raise EvidenceExtractionError(
+                            "Gemini returned an empty response."
+                        )
+
+                    return response_text
+
+                except EvidenceExtractionError:
+                    raise
+
+                except Exception as exc:
+                    last_error = exc
+
+                    if attempt == self.MAX_RETRIES:
+                        break
+
+                    time.sleep(
+                        self.RETRY_DELAY_SECONDS * attempt
+                    )
+
+            raise EvidenceExtractionError(
+                f"Gemini request failed after "
+                f"{self.MAX_RETRIES} attempts: {last_error}"
             )
-
-            response_text = getattr(response, "output_text", None)
-
-            if not response_text:
-                raise EvidenceExtractionError(
-                    "Gemini returned an empty response."
-                )
-
-            return response_text
 
         except EvidenceExtractionError:
             raise
