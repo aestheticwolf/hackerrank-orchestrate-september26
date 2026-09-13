@@ -5,6 +5,7 @@ import pandas as pd
 
 from code.config import (
     REQUESTS_FILE,
+    SAMPLE_REQUESTS_FILE,
     FINANCIAL_PROFILES_FILE,
     FINANCIAL_EVENTS_FILE,
     PAYMENT_OPTIONS_FILE,
@@ -25,6 +26,7 @@ class Dataset:
     def __init__(
         self,
         requests: pd.DataFrame,
+        sample_requests: pd.DataFrame,
         financial_profiles: pd.DataFrame,
         financial_events: pd.DataFrame,
         payment_options: pd.DataFrame,
@@ -33,6 +35,7 @@ class Dataset:
         images: pd.DataFrame,
     ):
         self.requests = requests
+        self.sample_requests = sample_requests
         self.financial_profiles = financial_profiles
         self.financial_events = financial_events
         self.payment_options = payment_options
@@ -59,6 +62,7 @@ def load_dataset() -> Dataset:
 
     return Dataset(
         requests=_read_csv(REQUESTS_FILE),
+        sample_requests=_read_csv(SAMPLE_REQUESTS_FILE),
         financial_profiles=_read_csv(FINANCIAL_PROFILES_FILE),
         financial_events=_read_csv(FINANCIAL_EVENTS_FILE),
         payment_options=_read_csv(PAYMENT_OPTIONS_FILE),
@@ -163,6 +167,7 @@ if __name__ == "__main__":
     print()
 
     print("Requests:", len(dataset.requests))
+    print("Sample requests:", len(dataset.sample_requests))
     print("Financial profiles:", len(dataset.financial_profiles))
     print("Financial events:", len(dataset.financial_events))
     print("Payment options:", len(dataset.payment_options))
