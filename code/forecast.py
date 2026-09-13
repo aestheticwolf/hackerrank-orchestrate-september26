@@ -124,7 +124,86 @@ class ForecastDay:
 
     @property
     def is_safe(self) -> bool:
-        return self.ending_balance >= self.minimum_balance   
+        return self.ending_balance >= self.minimum_balance
+
+
+def get_cash_flow_date(event: pd.Series) -> Optional[date]:
+    """
+    Return the date on which an event should affect available cash.
+
+    Challenge rules:
+    - Settled events use settlement_date when available.
+    - Scheduled events use settlement_date when available.
+    - Pending events are reserved using event_date.
+    - Failed and cancelled events have no cash effect.
+    - Unrealized events have no cash effect.
+    """
+
+    status = str(event.get("status", "")).strip().lower()
+    direction = str(event.get("direction", "")).strip().lower()
+
+    if status in {"failed", "cancelled", "unrealized"}:
+        return None
+
+    if status in {"settled", "scheduled"}:
+        settlement_date = pd.to_datetime(
+            event.get("settlement_date"),
+            errors="coerce",
+        )
+
+        if pd.notna(settlement_date):
+            return settlement_date.date()
+
+    event_date = pd.to_datetime(
+        event.get("event_date"),
+        errors="coerce",
+    )
+
+    if pd.isna(event_date):
+        return None
+
+    if status == "pending":
+        return event_date.date()
+
+    if direction in {"credit", "debit"}:
+        return event_date.date()
+
+    return None
+
+
+def get_cash_flow_amount(event: pd.Series) -> float:
+    """
+    Return the cash-flow amount for an event.
+
+    Debit events reduce cash.
+    Credit events increase cash.
+
+    Unknown amounts are not treated as zero.
+    They raise an error so the caller can resolve them
+    using available evidence.
+    """
+
+    amount = pd.to_numeric(
+        event.get("amount"),
+        errors="coerce",
+    )
+
+    if pd.isna(amount):
+        raise ValueError(
+            f"Financial event {event.get('event_id')} has an unknown amount"
+        )
+
+    direction = str(
+        event.get("direction", "")
+    ).strip().lower()
+
+    if direction == "debit":
+        return -float(amount)
+
+    if direction == "credit":
+        return float(amount)
+
+    return 0.0
 
 
 if __name__ == "__main__":
