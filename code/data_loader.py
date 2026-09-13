@@ -123,6 +123,49 @@ def get_request_payment_options(
         dataset.payment_options["request_id"].astype(str) == str(request_id)
     ].copy()
 
+def get_payment_options(
+    dataset: Dataset,
+    request_id: str,
+) -> list:
+    """
+    Return payment options for one request as PaymentOption objects.
+    """
+
+    from code.models import PaymentOption
+    from code.utils.dates import parse_date
+
+    rows = get_request_payment_options(
+        dataset,
+        request_id,
+    )
+
+    options = []
+
+    for _, row in rows.iterrows():
+        options.append(
+            PaymentOption(
+                payment_option_id=str(row["payment_option_id"]),
+                request_id=str(row["request_id"]),
+                payment_method=str(row["payment_method"]),
+                payment_amount=float(row["payment_amount"]),
+                number_of_payments=int(row["number_of_payments"]),
+                first_payment_date=parse_date(
+                    row["first_payment_date"]
+                ),
+                payment_frequency_days=(
+                    None
+                    if pd.isna(row["payment_frequency_days"])
+                    else int(row["payment_frequency_days"])
+                ),
+                financing_fee=float(row["financing_fee"]),
+                total_payable_amount=float(
+                    row["total_payable_amount"]
+                ),
+            )
+        )
+
+    return options
+
 
 def get_user_messages(
     dataset: Dataset,
