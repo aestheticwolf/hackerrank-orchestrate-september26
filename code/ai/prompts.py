@@ -64,35 +64,30 @@ Return ONLY valid JSON matching the requested schema.
 
 EVIDENCE_EXTRACTION_SCHEMA = {
     "type": "object",
-    "additionalProperties": False,
     "properties": {
         "amount": {
-            "type": ["number", "null"],
-            "description": "Financial amount explicitly supported by the evidence."
+            "type": "number",
+            "description": "Financial amount explicitly supported by the evidence. Do not invent an amount. If the evidence does not contain a financial amount, return 0 and treat that value as unknown rather than as a real zero amount."
         },
         "currency": {
-            "type": ["string", "null"],
-            "enum": ["INR", "ZAR", "IDR", "USD", "EUR", None],
-            "description": "Currency explicitly supported by the evidence."
+            "type": "string",
+            "description": "Currency explicitly supported by the evidence, or an empty string when unknown."
         },
         "date": {
-            "type": ["string", "null"],
-            "description": "Relevant date in YYYY-MM-DD format when explicitly supported."
+            "type": "string",
+            "description": "Relevant date in YYYY-MM-DD format when explicitly supported, or an empty string when unknown."
         },
         "status": {
-            "type": ["string", "null"],
-            "description": "Financial status supported by the evidence."
+            "type": "string",
+            "description": "Financial status supported by the evidence, or an empty string when unknown."
         },
         "description": {
-            "type": ["string", "null"],
-            "description": "Short factual description of the financial fact."
+            "type": "string",
+            "description": "Short factual description of the financial fact, or an empty string when unknown."
         },
         "fact_type": {
-            "type": ["string", "null"],
-            "description": (
-                "Type of financial fact, such as salary, expense, payment, "
-                "cancellation, settlement, amendment, or other."
-            )
+            "type": "string",
+            "description": "Type of financial fact such as salary, expense, payment, cancellation, settlement, amendment, income, or other."
         },
         "confidence": {
             "type": "number",

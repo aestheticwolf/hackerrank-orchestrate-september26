@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from models import Evidence
+from code.models import Evidence
 
 
 class AIProvider(Protocol):
