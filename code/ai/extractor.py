@@ -42,6 +42,7 @@ class ExtractedEvidence:
     """
 
     amount: float | None
+    amount_known: bool
     currency: str | None
     date: str | None
     status: str | None
@@ -80,9 +81,12 @@ def _clean_optional_string(value: Any) -> str | None:
     return text
 
 
-def _validate_amount(value: Any) -> float | None:
+def _validate_amount(value: Any) -> float:
     if value is None:
-        return None
+        raise EvidenceExtractionError(
+            "Amount must be numeric; use amount=0 with amount_known=false "
+            "when the amount is unknown"
+        )
 
     if isinstance(value, bool):
         raise EvidenceExtractionError("Amount cannot be boolean")
@@ -100,6 +104,40 @@ def _validate_amount(value: Any) -> float | None:
         )
 
     return amount
+
+
+def _validate_amount_known(value: Any) -> bool:
+    if not isinstance(value, bool):
+        raise EvidenceExtractionError(
+            "amount_known must be a boolean"
+        )
+
+    return value
+
+
+def _resolve_amount(
+    value: Any,
+    amount_known: Any,
+) -> tuple[float | None, bool]:
+    """
+    Validate the amount and explicitly resolve the UNKNOWN sentinel.
+
+    amount=0 with amount_known=false means the amount is unknown.
+    amount=0 with amount_known=true means the actual amount is zero.
+    """
+
+    amount = _validate_amount(value)
+    known = _validate_amount_known(amount_known)
+
+    if not known:
+        if amount != 0:
+            raise EvidenceExtractionError(
+                "amount_known=false requires amount=0"
+            )
+
+        return None, False
+
+    return amount, True
 
 
 def _validate_currency(value: Any) -> str | None:
@@ -182,6 +220,7 @@ def parse_extraction_response(raw_response: str) -> ExtractedEvidence:
 
     required_fields = {
         "amount",
+        "amount_known",
         "currency",
         "date",
         "status",
@@ -197,7 +236,11 @@ def parse_extraction_response(raw_response: str) -> ExtractedEvidence:
             f"AI response is missing fields: {sorted(missing_fields)}"
         )
 
-    amount = _validate_amount(data["amount"])
+    amount, amount_known = _resolve_amount(
+        data["amount"],
+        data["amount_known"],
+    )
+
     currency = _validate_currency(data["currency"])
     date_value = _validate_date(data["date"])
 
@@ -217,6 +260,7 @@ def parse_extraction_response(raw_response: str) -> ExtractedEvidence:
 
     return ExtractedEvidence(
         amount=amount,
+        amount_known=amount_known,
         currency=currency,
         date=date_value,
         status=status,
@@ -241,6 +285,7 @@ def extraction_to_evidence(
 
     extracted_facts = {
         "amount": extracted.amount,
+        "amount_known": extracted.amount_known,
         "currency": extracted.currency,
         "date": extracted.date,
         "status": extracted.status,

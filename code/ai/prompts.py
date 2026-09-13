@@ -26,6 +26,13 @@ IMPORTANT:
 - A numeric zero printed in the document is a real zero only when it is
   explicitly shown as zero for the relevant fact.
 - A missing or unreadable amount is UNKNOWN, not zero.
+- Set amount_known to true only when the relevant amount is explicitly and
+  reliably supported by the evidence.
+- Set amount_known to false when the relevant amount is missing, unreadable,
+  ambiguous, or otherwise cannot be reliably determined.
+- When amount_known is false, amount must be 0 only as a technical sentinel.
+  The application will treat amount_known=false as UNKNOWN, never as a real
+  zero amount.
 
 Do not make affordability decisions.
 Do not recommend whether the user should spend money.
@@ -76,9 +83,11 @@ Do not assume missing values.
 Do not treat a missing amount as zero.
 Do not invent dates, amounts, currencies, statuses, or descriptions.
 
-If a financial amount is explicitly stated as zero, zero is a valid amount.
-If an amount is missing or cannot be determined, return 0 as the extraction
-sentinel and treat it as UNKNOWN in the application.
+If a financial amount is explicitly stated as zero, set amount to 0 and
+amount_known to true.
+
+If an amount is missing or cannot be determined, set amount to 0 and
+amount_known to false.
 
 Return ONLY valid JSON matching the requested schema.
 """
@@ -93,9 +102,17 @@ EVIDENCE_EXTRACTION_SCHEMA = {
                 "The single financial amount most directly relevant to the "
                 "linked event or message. Use the amount explicitly supported "
                 "by the evidence. Do not choose unrelated line items. "
-                "If the relevant amount is missing or cannot be determined, "
-                "return 0 as an UNKNOWN sentinel. The application must never "
-                "interpret this extraction sentinel as a real zero amount."
+                "When amount_known is false, return 0 only as a technical "
+                "sentinel. The application must treat amount_known=false as "
+                "UNKNOWN, never as a real zero amount."
+            ),
+        },
+        "amount_known": {
+            "type": "boolean",
+            "description": (
+                "True only when the relevant financial amount is explicitly "
+                "and reliably supported by the evidence. False when the "
+                "amount is missing, unreadable, ambiguous, or unknown."
             ),
         },
         "currency": {
@@ -147,6 +164,7 @@ EVIDENCE_EXTRACTION_SCHEMA = {
     },
     "required": [
         "amount",
+        "amount_known",
         "currency",
         "date",
         "status",
@@ -199,10 +217,15 @@ Do NOT select:
 
 Return only ONE extracted financial fact.
 
-If the relevant amount cannot be reliably determined from the image:
-- return amount as 0
-- treat that 0 as UNKNOWN
-- do not claim that the actual financial amount is zero
+Amount handling:
+- If the relevant amount is clearly supported by the image, set
+  amount_known to true and return the actual amount.
+- If the relevant amount is explicitly shown as zero, set amount_known to true
+  and return amount as 0.
+- If the relevant amount cannot be reliably determined, set amount_known to
+  false and return amount as 0 only as a technical sentinel.
+- Never use amount=0 with amount_known=false to claim that the real financial
+  amount is zero.
 
 Do not make an affordability decision.
 Do not create a payment plan.
@@ -237,10 +260,15 @@ Do not make an affordability decision.
 Do not create a payment plan.
 Do not alter challenge rules.
 
-If the relevant amount is missing or cannot be determined:
-- return amount as 0
-- treat that 0 as UNKNOWN
-- never interpret it as proof of a real zero amount
+Amount handling:
+- If an amount is explicitly stated and reliable, set amount_known to true
+  and return the amount.
+- If an amount is explicitly stated as zero, set amount_known to true and
+  return amount as 0.
+- If the relevant amount is missing or cannot be determined, set
+  amount_known to false and return amount as 0 only as a technical sentinel.
+- Never interpret amount=0 with amount_known=false as proof of a real zero
+  amount.
 
 Return JSON matching the evidence extraction schema.
 """
