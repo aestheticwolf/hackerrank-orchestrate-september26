@@ -322,6 +322,60 @@ def build_90_day_forecast(
 
     return forecast
 
+def simulate_additional_payment(
+    forecast: list[ForecastDay],
+    payment_date: date,
+    payment_amount: float,
+) -> list[ForecastDay]:
+    """
+    Apply an additional one-time payment to an existing forecast.
+
+    The payment is treated as a debit on payment_date.
+    All subsequent balances are recalculated from that point forward.
+    """
+
+    if payment_amount < 0:
+        raise ValueError("payment_amount cannot be negative")
+
+    if not forecast:
+        return []
+
+    updated_forecast: list[ForecastDay] = []
+
+    running_balance = forecast[0].starting_balance
+
+    for day in forecast:
+        income = day.income
+        expenses = day.expenses
+
+        additional_payment = 0.0
+
+        if day.forecast_date == payment_date:
+            additional_payment = payment_amount
+
+        total_expenses = expenses + additional_payment
+
+        ending_balance = (
+            running_balance
+            + income
+            - total_expenses
+        )
+
+        updated_day = ForecastDay(
+            forecast_date=day.forecast_date,
+            starting_balance=running_balance,
+            income=income,
+            expenses=total_expenses,
+            ending_balance=ending_balance,
+            minimum_balance=day.minimum_balance,
+        )
+
+        updated_forecast.append(updated_day)
+
+        running_balance = ending_balance
+
+    return updated_forecast
+
 if __name__ == "__main__":
     from code.data_loader import load_dataset
 
@@ -335,3 +389,16 @@ if __name__ == "__main__":
 
     for pattern in patterns[:20]:
         print(pattern)
+
+def forecast_is_safe(
+    forecast: list[ForecastDay],
+) -> bool:
+    """
+    Return True only if the balance never falls below
+    the required minimum balance during the forecast.
+    """
+
+    return all(
+        day.is_safe
+        for day in forecast
+    )
