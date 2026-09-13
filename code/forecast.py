@@ -4,6 +4,8 @@ from typing import Optional
 
 import pandas as pd
 
+from code.utils.currency import convert_amount
+
 
 @dataclass
 class RecurringPattern:
@@ -213,6 +215,8 @@ def build_90_day_forecast(
     minimum_balance: float,
     forecast_start: date,
     financial_events: pd.DataFrame,
+    home_currency: str,
+    exchange_rates: pd.DataFrame,
     forecast_days: int = 90,
 ) -> list[ForecastDay]:
     """
@@ -263,9 +267,9 @@ def build_90_day_forecast(
         )
 
     forecast_end = (
-    forecast_start
-    + pd.Timedelta(days=forecast_days - 1)
-)
+        forecast_start
+        + pd.Timedelta(days=forecast_days - 1)
+    )
 
     daily_income: dict[date, float] = {}
     daily_expenses: dict[date, float] = {}
@@ -295,6 +299,18 @@ def build_90_day_forecast(
             continue
 
         amount = get_cash_flow_amount(event)
+
+        event_currency = str(
+            event.get("currency", "")
+        ).strip().upper()
+
+        amount = convert_amount(
+            amount=abs(amount),
+            from_currency=event_currency,
+            to_currency=home_currency,
+            rate_date=cash_flow_date,
+            exchange_rates=exchange_rates,
+        )
 
         if direction == "credit":
             daily_income[cash_flow_date] = (
