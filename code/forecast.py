@@ -113,6 +113,20 @@ def detect_recurring_patterns(
     return patterns
 
 
+@dataclass
+class ForecastDay:
+    forecast_date: date
+    starting_balance: float
+    income: float
+    expenses: float
+    ending_balance: float
+    minimum_balance: float
+
+    @property
+    def is_safe(self) -> bool:
+        return self.ending_balance >= self.minimum_balance   
+
+
 if __name__ == "__main__":
     from code.data_loader import load_dataset
 
