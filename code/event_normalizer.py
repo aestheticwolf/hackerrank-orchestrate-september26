@@ -61,9 +61,12 @@ def normalize_event(event: FinancialEvent) -> Optional[NormalizedCashFlowEvent]:
         )
 
     # Settled and scheduled events use their settlement date when available.
-    # Pending debits are reserved using the settlement date when available.
+    # Pending debits are reserved from the event date.
     # Otherwise fall back to the event date.
-    cash_flow_date = event.settlement_date or event.event_date
+    if status == "pending" and direction == "debit":
+        cash_flow_date = event.event_date
+    else:
+        cash_flow_date = event.settlement_date or event.event_date
 
     return NormalizedCashFlowEvent(
         event_id=event.event_id,
