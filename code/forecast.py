@@ -10,6 +10,7 @@ class RecurringPattern:
     user_id: str
     event_type: str
     category: str
+    currency: str
     interval_days: int
     average_amount: float
     minimum_amount: Optional[float]
@@ -43,11 +44,11 @@ def detect_recurring_patterns(
     patterns: list[RecurringPattern] = []
 
     grouped = events.sort_values("event_date").groupby(
-        ["user_id", "event_type", "category"],
+        ["user_id", "event_type", "category", "currency"],
         dropna=False,
     )
 
-    for (user_id, event_type, category), group in grouped:
+    for (user_id, event_type, category, currency), group in grouped:
         if len(group) < minimum_occurrences:
             continue
 
@@ -101,6 +102,7 @@ def detect_recurring_patterns(
                 user_id=str(user_id),
                 event_type=str(event_type),
                 category=str(category),
+                currency=str(currency),
                 interval_days=common_gap,
                 average_amount=float(amounts.mean()),
                 minimum_amount=minimum_amount,
@@ -232,6 +234,21 @@ def build_90_day_forecast(
         return []
 
     events = financial_events.copy()
+
+    patterns = detect_recurring_patterns(financial_events)
+
+    projected_events = project_recurring_expenses(
+        patterns,
+        forecast_start,
+        forecast_days,
+    )
+
+    if projected_events:
+        projected_df = pd.DataFrame(projected_events)
+        events = pd.concat(
+            [events, projected_df],
+            ignore_index=True,
+        )
 
     if events.empty:
         events = pd.DataFrame(
@@ -402,3 +419,57 @@ def forecast_is_safe(
         day.is_safe
         for day in forecast
     )
+
+def project_recurring_expenses(
+    patterns: list[RecurringPattern],
+    forecast_start: date,
+    forecast_days: int,
+) -> list[dict]:
+    """
+    Project supported recurring expenses into the forecast window.
+
+    Only historical patterns detected from financial events are projected.
+    Each projected occurrence uses the pattern's average amount.
+    """
+
+    if forecast_days <= 0:
+        return []
+
+    forecast_end = forecast_start + pd.Timedelta(
+        days=forecast_days - 1
+    )
+
+    projected_events: list[dict] = []
+
+    for pattern in patterns:
+        next_date = pattern.last_date + pd.Timedelta(
+            days=pattern.interval_days
+        )
+
+        while next_date < forecast_start:
+            next_date += pd.Timedelta(
+                days=pattern.interval_days
+            )
+
+        while next_date <= forecast_end:
+            projected_events.append(
+                {
+                    "user_id": pattern.user_id,
+                    "event_type": pattern.event_type,
+                    "category": pattern.category,
+                    "direction": "debit",
+                    "amount": pattern.average_amount,
+                    "currency": pattern.currency,
+                    "event_date": next_date,
+                    "settlement_date": next_date,
+                    "status": "projected",
+                    "flexibility": pattern.flexibility,
+                    "minimum_allowed_amount": pattern.minimum_amount,
+                }
+            )
+
+            next_date += pd.Timedelta(
+                days=pattern.interval_days
+            )
+
+    return projected_events
