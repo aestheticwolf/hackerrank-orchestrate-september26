@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Optional
 
 import pandas as pd
@@ -14,7 +15,6 @@ def _safe_text(value: object) -> str:
 
     Missing values are represented as an empty string.
     """
-
     if value is None:
         return ""
 
@@ -36,13 +36,10 @@ def collect_message_evidence(
     Collect message records relevant to a user, request, or event.
 
     No financial facts are inferred here.
-
     Messages are treated as untrusted evidence and are only collected
     for later extraction and validation.
     """
-
     messages = dataset.messages.copy()
-
     messages["user_id"] = messages["user_id"].astype(str)
 
     matches = messages[messages["user_id"] == str(user_id)]
@@ -84,12 +81,9 @@ def collect_image_evidence(
     Collect image records relevant to a user, request, or event.
 
     This function only records the image relationship.
-
-    Actual image interpretation will happen in the AI extraction layer.
+    Actual image interpretation happens in the AI extraction layer.
     """
-
     images = dataset.images.copy()
-
     images["user_id"] = images["user_id"].astype(str)
 
     matches = images[images["user_id"] == str(user_id)]
@@ -125,6 +119,27 @@ def collect_image_evidence(
     return evidence
 
 
+def get_image_path(image_id: str) -> Path:
+    """
+    Resolve an image ID from images.csv to its dataset image file.
+    """
+    from config import IMAGE_DIR
+
+    clean_id = str(image_id).strip()
+
+    if not clean_id:
+        raise ValueError("image_id cannot be empty")
+
+    image_path = IMAGE_DIR / f"{clean_id}.png"
+
+    if not image_path.exists():
+        raise FileNotFoundError(
+            f"Evidence image not found for {clean_id}: {image_path}"
+        )
+
+    return image_path
+
+
 def collect_user_evidence(
     dataset: Dataset,
     user_id: str,
@@ -132,7 +147,6 @@ def collect_user_evidence(
     """
     Collect all message and image evidence belonging to a user.
     """
-
     return (
         collect_message_evidence(dataset, user_id)
         + collect_image_evidence(dataset, user_id)
@@ -147,7 +161,6 @@ def collect_request_evidence(
     """
     Collect all message and image evidence attached to a request.
     """
-
     return (
         collect_message_evidence(
             dataset,
@@ -170,7 +183,6 @@ def collect_event_evidence(
     """
     Collect all message and image evidence attached to a financial event.
     """
-
     return (
         collect_message_evidence(
             dataset,
@@ -189,7 +201,6 @@ def _optional_text(value: object) -> Optional[str]:
     """
     Convert a possibly missing CSV value into Optional[str].
     """
-
     text = _safe_text(value)
 
     if not text:
@@ -209,7 +220,6 @@ def find_blank_amount_events(
 
     A blank amount is never treated as zero.
     """
-
     events = dataset.financial_events.copy()
 
     return events[events["amount"].isna()].copy()
@@ -222,7 +232,6 @@ def find_events_with_image_evidence(
     Return financial events that have an image linked through
     images.csv.related_event_id.
     """
-
     blank_amount_events = find_blank_amount_events(dataset)
 
     if blank_amount_events.empty or dataset.images.empty:
@@ -236,7 +245,9 @@ def find_events_with_image_evidence(
     )
 
     return blank_amount_events[
-        blank_amount_events["event_id"].astype(str).isin(image_event_ids)
+        blank_amount_events["event_id"]
+        .astype(str)
+        .isin(image_event_ids)
     ].copy()
 
 
@@ -252,4 +263,7 @@ if __name__ == "__main__":
     print("Messages:", len(dataset.messages))
     print("Images:", len(dataset.images))
     print("Blank amount events:", len(blank_events))
-    print("Blank amount events with image evidence:", len(image_events))
+    print(
+        "Blank amount events with image evidence:",
+        len(image_events),
+    )
