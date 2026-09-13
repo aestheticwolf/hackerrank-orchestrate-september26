@@ -206,6 +206,122 @@ def get_cash_flow_amount(event: pd.Series) -> float:
     return 0.0
 
 
+def build_90_day_forecast(
+    starting_balance: float,
+    minimum_balance: float,
+    forecast_start: date,
+    financial_events: pd.DataFrame,
+    forecast_days: int = 90,
+) -> list[ForecastDay]:
+    """
+    Build a daily cash-flow forecast.
+
+    The forecast tracks actual financial events that can affect cash.
+    Failed, cancelled, and unrealized events are excluded by the
+    cash-flow classification helpers.
+
+    Pending debits are reserved using their event date.
+    Pending credits are not treated as available future income because
+    pending events do not represent confirmed cash.
+
+    Scheduled and settled events use their settlement date when
+    available.
+    """
+
+    if forecast_days <= 0:
+        return []
+
+    events = financial_events.copy()
+
+    if events.empty:
+        events = pd.DataFrame(
+            columns=[
+                "event_id",
+                "direction",
+                "status",
+                "amount",
+                "event_date",
+                "settlement_date",
+            ]
+        )
+
+    forecast_end = (
+    forecast_start
+    + pd.Timedelta(days=forecast_days - 1)
+)
+
+    daily_income: dict[date, float] = {}
+    daily_expenses: dict[date, float] = {}
+
+    for _, event in events.iterrows():
+        status = str(
+            event.get("status", "")
+        ).strip().lower()
+
+        direction = str(
+            event.get("direction", "")
+        ).strip().lower()
+
+        cash_flow_date = get_cash_flow_date(event)
+
+        if cash_flow_date is None:
+            continue
+
+        if cash_flow_date < forecast_start:
+            continue
+
+        if cash_flow_date > forecast_end:
+            continue
+
+        # Pending credits are not counted as available income.
+        if status == "pending" and direction == "credit":
+            continue
+
+        amount = get_cash_flow_amount(event)
+
+        if direction == "credit":
+            daily_income[cash_flow_date] = (
+                daily_income.get(cash_flow_date, 0.0)
+                + amount
+            )
+
+        elif direction == "debit":
+            daily_expenses[cash_flow_date] = (
+                daily_expenses.get(cash_flow_date, 0.0)
+                + abs(amount)
+            )
+
+    forecast: list[ForecastDay] = []
+
+    current_balance = float(starting_balance)
+
+    for offset in range(forecast_days):
+        current_date = forecast_start + pd.Timedelta(days=offset)
+
+        income = daily_income.get(current_date, 0.0)
+        expenses = daily_expenses.get(current_date, 0.0)
+
+        ending_balance = (
+            current_balance
+            + income
+            - expenses
+        )
+
+        forecast_day = ForecastDay(
+            forecast_date=current_date,
+            starting_balance=current_balance,
+            income=income,
+            expenses=expenses,
+            ending_balance=ending_balance,
+            minimum_balance=float(minimum_balance),
+        )
+
+        forecast.append(forecast_day)
+
+        current_balance = ending_balance
+
+    return forecast
+
 if __name__ == "__main__":
     from code.data_loader import load_dataset
 
