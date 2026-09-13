@@ -33,6 +33,12 @@ IMPORTANT:
 - When amount_known is false, amount must be 0 only as a technical sentinel.
   The application will treat amount_known=false as UNKNOWN, never as a real
   zero amount.
+- The linked financial event's currency from the dataset is authoritative.
+- Return that currency using the exact dataset currency code.
+- Do not return visual currency symbols or abbreviations such as "Rs", "₹",
+  "$", or "€".
+- If the image uses a currency symbol or abbreviation, use the authoritative
+  event currency code supplied in the event metadata.
 
 Do not make affordability decisions.
 Do not recommend whether the user should spend money.
@@ -181,6 +187,7 @@ def build_image_extraction_prompt(
     event_description: str,
     event_type: str,
     category: str,
+    event_currency: str,
 ) -> str:
     return f"""
 Extract ONE financial fact from the supplied image that corresponds to the
@@ -192,8 +199,18 @@ Context from the dataset:
 - event_type: {event_type}
 - category: {category}
 - event description: {event_description}
+- authoritative event currency: {event_currency}
 
 The metadata above is context only. It does not prove any financial value.
+
+IMPORTANT CURRENCY RULE:
+- The authoritative currency for this event is {event_currency}.
+- Return currency using exactly this dataset currency code: {event_currency}.
+- Do not return visual currency symbols or abbreviations such as "Rs", "₹",
+  "$", or "€".
+- If the image uses a currency symbol or abbreviation, use the authoritative
+  event currency code above.
+- Do not infer a different currency from the image.
 
 Your task is to identify the single amount and related facts that best
 correspond to this event.
